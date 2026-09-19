@@ -1,0 +1,45 @@
+package store
+
+import (
+	"errors"
+	"sync"
+
+	"github.com/mthatipamula/go-agent-control-plane/internal/task"
+)
+
+var ErrTaskNotFound = errors.New("task not found")
+
+type TaskStore struct {
+	mu    sync.RWMutex
+	tasks map[string]task.Task
+}
+
+func NewTaskStore() *TaskStore {
+	return &TaskStore{
+		tasks: make(map[string]task.Task),
+	}
+}
+
+func (s *TaskStore) Create(t task.Task) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.tasks[t.ID]; exists {
+		return errors.New("task already exists")
+	}
+
+	s.tasks[t.ID] = t
+	return nil
+}
+
+func (s *TaskStore) Get(id string) (task.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	t, exists := s.tasks[id]
+	if !exists {
+		return task.Task{}, ErrTaskNotFound
+	}
+
+	return t, nil
+}
