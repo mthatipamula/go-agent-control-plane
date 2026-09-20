@@ -7,6 +7,7 @@ import (
 )
 
 var ErrVersionConflict = errors.New("task version conflict")
+var ErrFencingTokenConflict = errors.New("fencing token conflict")
 
 func (s *TaskStore) Update(t task.Task, expectedVersion int64) error {
 	s.mu.Lock()

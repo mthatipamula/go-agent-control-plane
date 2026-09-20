@@ -375,3 +375,75 @@ func TestAgentRecoverExpiredTask(t *testing.T) {
 		t.Error("recovered task lease should be active")
 	}
 }
+
+func TestStaleAgentCannotUpdateRecoveredTask(t *testing.T) {
+	taskStore := store.NewTaskStore()
+
+	agent1 := NewAgent("agent-1", taskStore)
+	agent2 := NewAgent("agent-2", taskStore)
+
+	now := time.Now()
+
+	input := task.Task{
+		ID:        "task-stale-agent",
+		Payload:   "process order",
+		Status:    task.StatusPending,
+		Version:   0,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := taskStore.Create(input); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if err := agent1.Claim("task-stale-agent"); err != nil {
+		t.Fatalf("agent1 Claim() error = %v", err)
+	}
+
+	claimed, err := taskStore.Get("task-stale-agent")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	staleVersion := claimed.Version
+	staleFencingToken := claimed.FencingToken
+
+	expired := time.Now().Add(-time.Second)
+	claimed.LeaseExpiresAt = &expired
+
+	if err := taskStore.Update(claimed, claimed.Version); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := agent2.Recover("task-stale-agent"); err != nil {
+		t.Fatalf("agent2 Recover() error = %v", err)
+	}
+
+	recovered, err := taskStore.Get("task-stale-agent")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if recovered.FencingToken != 2 {
+		t.Fatalf("FencingToken = %d, want %d",
+			recovered.FencingToken, 2)
+	}
+
+	// Simulate the stale Agent 1 attempting to update
+	// using its old fencing token.
+	recovered.Status = task.StatusRunning
+
+	err = taskStore.UpdateWithFencing(
+		recovered,
+		recovered.Version,
+		staleFencingToken,
+	)
+
+	if err != store.ErrFencingTokenConflict {
+		t.Fatalf("UpdateWithFencing() error = %v, want %v",
+			err, store.ErrFencingTokenConflict)
+	}
+
+	_ = staleVersion
+}

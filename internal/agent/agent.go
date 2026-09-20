@@ -57,7 +57,7 @@ func (a *Agent) Start(taskID string) error {
 
 	t.Status = task.StatusRunning
 
-	return a.store.Update(t, t.Version)
+	return a.store.UpdateWithFencing(t, t.Version, t.FencingToken)
 }
 
 func (a *Agent) Complete(taskID string) error {
@@ -76,7 +76,7 @@ func (a *Agent) Complete(taskID string) error {
 
 	t.Status = task.StatusCompleted
 
-	return a.store.Update(t, t.Version)
+	return a.store.UpdateWithFencing(t, t.Version, t.FencingToken)
 }
 
 func (a *Agent) Renew(taskID string) error {

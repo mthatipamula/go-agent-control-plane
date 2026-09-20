@@ -43,3 +43,30 @@ func (s *TaskStore) Get(id string) (task.Task, error) {
 
 	return t, nil
 }
+
+func (s *TaskStore) UpdateWithFencing(
+	t task.Task,
+	expectedVersion int64,
+	expectedFencingToken int64,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	current, exists := s.tasks[t.ID]
+	if !exists {
+		return ErrTaskNotFound
+	}
+
+	if current.Version != expectedVersion {
+		return ErrVersionConflict
+	}
+
+	if current.FencingToken != expectedFencingToken {
+		return ErrFencingTokenConflict
+	}
+
+	t.Version = expectedVersion + 1
+	s.tasks[t.ID] = t
+
+	return nil
+}
