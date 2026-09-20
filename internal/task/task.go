@@ -13,12 +13,14 @@ const (
 )
 
 type Task struct {
-	ID        string
-	Payload   string
-	Status    Status
-	AgentID   string
-	Attempt   int
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID             string
+	Payload        string
+	Status         Status
+	AgentID        string
+	Attempt        int
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LeaseExpiresAt *time.Time
+	FencingToken   int64
 }
