@@ -71,7 +71,7 @@ func (s *TaskStore) UpdateWithFencing(
 	return nil
 }
 
-func (s *TaskStore) ListPending() []task.Task {
+func (s *TaskStore) ListPending() ([]task.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -83,10 +83,10 @@ func (s *TaskStore) ListPending() []task.Task {
 		}
 	}
 
-	return pending
+	return pending, nil
 }
 
-func (s *TaskStore) List() []task.Task {
+func (s *TaskStore) List() ([]task.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -96,5 +96,5 @@ func (s *TaskStore) List() []task.Task {
 		tasks = append(tasks, t)
 	}
 
-	return tasks
+	return tasks, nil
 }

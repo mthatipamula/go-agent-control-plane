@@ -108,7 +108,11 @@ func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks := h.controller.List()
+	tasks, err := h.controller.List()
+	if err != nil {
+		http.Error(w, "failed to list tasks", http.StatusInternalServerError)
+		return
+	}
 
 	response := make([]taskResponse, 0, len(tasks))
 

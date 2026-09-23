@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/mthatipamula/go-agent-control-plane/internal/agent"
@@ -14,7 +15,22 @@ import (
 )
 
 func main() {
-	taskStore := store.NewTaskStore()
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://control_plane:control_plane@localhost:5432/control_plane?sslmode=disable"
+	}
+
+	db, err := store.OpenPostgres(dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatal(err)
+	}
+
+	taskStore := store.NewPostgresTaskStore(db)
 	controlPlane := controller.NewController(taskStore)
 
 	executor := task.NewSimpleExecutor()
@@ -44,7 +60,22 @@ func main() {
 
 	log.Println("control plane listening on :8080")
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8080", enableCORS(mux)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

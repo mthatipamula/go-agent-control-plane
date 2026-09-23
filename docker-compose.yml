@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: go-agent-control-plane-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: control_plane
+      POSTGRES_USER: control_plane
+      POSTGRES_PASSWORD: control_plane
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

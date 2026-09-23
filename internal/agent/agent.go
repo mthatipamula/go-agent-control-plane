@@ -13,11 +13,11 @@ import (
 
 type Agent struct {
 	ID       string
-	store    *store.TaskStore
+	store    store.TaskRepository
 	executor task.Executor
 }
 
-func NewAgent(id string, store *store.TaskStore, executors ...task.Executor) *Agent {
+func NewAgent(id string, store store.TaskRepository, executors ...task.Executor) *Agent {
 	var executor task.Executor
 
 	if len(executors) > 0 {
@@ -49,7 +49,7 @@ func (a *Agent) Claim(taskID string) error {
 	t.LeaseExpiresAt = &leaseExpiresAt
 	t.FencingToken++
 
-	return a.store.Update(t, t.Version)
+	return a.store.UpdateWithFencing(t, t.Version, t.FencingToken-1)
 }
 
 func (a *Agent) Start(taskID string) error {
@@ -107,7 +107,7 @@ func (a *Agent) Renew(taskID string) error {
 	leaseExpiresAt := time.Now().Add(LeaseDuration)
 	t.LeaseExpiresAt = &leaseExpiresAt
 
-	return a.store.Update(t, t.Version)
+	return a.store.UpdateWithFencing(t, t.Version, t.FencingToken)
 }
 
 func (a *Agent) Recover(taskID string) error {
@@ -127,7 +127,7 @@ func (a *Agent) Recover(taskID string) error {
 	leaseExpiresAt := time.Now().Add(LeaseDuration)
 	t.LeaseExpiresAt = &leaseExpiresAt
 
-	return a.store.Update(t, t.Version)
+	return a.store.UpdateWithFencing(t, t.Version, t.FencingToken-1)
 }
 
 func (a *Agent) Execute(taskID string) error {
@@ -174,13 +174,16 @@ func (a *Agent) Execute(taskID string) error {
 }
 
 func (a *Agent) RunOnce() error {
-	pendingTasks := a.store.ListPending()
+	pending, err := a.store.ListPending()
+	if err != nil {
+		return err
+	}
 
-	if len(pendingTasks) == 0 {
+	if len(pending) == 0 {
 		return nil
 	}
 
-	t := pendingTasks[0]
+	t := pending[0]
 
 	if err := a.Claim(t.ID); err != nil {
 		return err

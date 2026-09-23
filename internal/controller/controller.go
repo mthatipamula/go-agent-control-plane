@@ -8,10 +8,10 @@ import (
 )
 
 type Controller struct {
-	store *store.TaskStore
+	store store.TaskRepository
 }
 
-func NewController(store *store.TaskStore) *Controller {
+func NewController(store store.TaskRepository) *Controller {
 	return &Controller{
 		store: store,
 	}
@@ -40,6 +40,6 @@ func (c *Controller) Get(taskID string) (task.Task, error) {
 	return c.store.Get(taskID)
 }
 
-func (c *Controller) List() []task.Task {
+func (c *Controller) List() ([]task.Task, error) {
 	return c.store.List()
 }
