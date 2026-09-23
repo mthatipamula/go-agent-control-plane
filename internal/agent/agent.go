@@ -1,7 +1,10 @@
 package agent
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/mthatipamula/go-agent-control-plane/internal/store"
@@ -9,14 +12,22 @@ import (
 )
 
 type Agent struct {
-	ID    string
-	store *store.TaskStore
+	ID       string
+	store    *store.TaskStore
+	executor task.Executor
 }
 
-func NewAgent(id string, store *store.TaskStore) *Agent {
+func NewAgent(id string, store *store.TaskStore, executors ...task.Executor) *Agent {
+	var executor task.Executor
+
+	if len(executors) > 0 {
+		executor = executors[0]
+	}
+
 	return &Agent{
-		ID:    id,
-		store: store,
+		ID:       id,
+		store:    store,
+		executor: executor,
 	}
 }
 
@@ -117,4 +128,84 @@ func (a *Agent) Recover(taskID string) error {
 	t.LeaseExpiresAt = &leaseExpiresAt
 
 	return a.store.Update(t, t.Version)
+}
+
+func (a *Agent) Execute(taskID string) error {
+	t, err := a.store.Get(taskID)
+	if err != nil {
+		return err
+	}
+
+	if t.Status != task.StatusRunning {
+		return fmt.Errorf("task %s is not running", taskID)
+	}
+
+	if t.AgentID != a.ID {
+		return fmt.Errorf("task %s is not owned by agent %s", taskID, a.ID)
+	}
+
+	if a.executor == nil {
+		return fmt.Errorf("agent %s has no executor", a.ID)
+	}
+
+	if err := a.executor.Execute(t.Payload); err != nil {
+		t.Status = task.StatusFailed
+		t.LeaseExpiresAt = nil
+
+		if err := a.store.UpdateWithFencing(
+			t,
+			t.Version,
+			t.FencingToken,
+		); err != nil {
+			return err
+		}
+
+		return err
+	}
+
+	t.Status = task.StatusCompleted
+	t.LeaseExpiresAt = nil
+
+	return a.store.UpdateWithFencing(
+		t,
+		t.Version,
+		t.FencingToken,
+	)
+}
+
+func (a *Agent) RunOnce() error {
+	pendingTasks := a.store.ListPending()
+
+	if len(pendingTasks) == 0 {
+		return nil
+	}
+
+	t := pendingTasks[0]
+
+	if err := a.Claim(t.ID); err != nil {
+		return err
+	}
+
+	if err := a.Start(t.ID); err != nil {
+		return err
+	}
+
+	return a.Execute(t.ID)
+}
+
+func (a *Agent) Run(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-ticker.C:
+			if err := a.RunOnce(); err != nil {
+				log.Printf("agent %s: task execution error: %v", a.ID, err)
+			}
+		}
+	}
 }

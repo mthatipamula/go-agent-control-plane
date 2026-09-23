@@ -70,3 +70,31 @@ func (s *TaskStore) UpdateWithFencing(
 
 	return nil
 }
+
+func (s *TaskStore) ListPending() []task.Task {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var pending []task.Task
+
+	for _, t := range s.tasks {
+		if t.Status == task.StatusPending {
+			pending = append(pending, t)
+		}
+	}
+
+	return pending
+}
+
+func (s *TaskStore) List() []task.Task {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	tasks := make([]task.Task, 0, len(s.tasks))
+
+	for _, t := range s.tasks {
+		tasks = append(tasks, t)
+	}
+
+	return tasks
+}

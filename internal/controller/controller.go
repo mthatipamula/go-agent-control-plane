@@ -35,3 +35,11 @@ func (c *Controller) Submit(payload string) (task.Task, error) {
 
 	return t, nil
 }
+
+func (c *Controller) Get(taskID string) (task.Task, error) {
+	return c.store.Get(taskID)
+}
+
+func (c *Controller) List() []task.Task {
+	return c.store.List()
+}
